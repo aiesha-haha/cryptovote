@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация избирателя — SecureVote{% endblock %}
+
+{% block content %}
+<div style="max-width: 480px; margin: 30px auto;">
+    <div class="card" style="padding: 32px 28px; border-top: 4px solid var(--primary);">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="width: 52px; height: 52px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 12px;">
+                📝
+            </div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 4px;">Регистрация в системе</h2>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">
+                Создание криптографического профиля избирателя
+            </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('register_view') }}">
+            <div class="form-group">
+                <label for="username" class="form-label">Идентификатор / Логин</label>
+                <input type="text" id="username" name="username" class="form-control" placeholder="Например: aidos_voter" required minlength="3">
+            </div>
+
+            <div class="form-group">
+                <label for="full_name" class="form-label">Ф.И.О. избирателя</label>
+                <input type="text" id="full_name" name="full_name" class="form-control" placeholder="Например: Айдос Серікұлы" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Пароль (хешируется через Argon2id)</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="Не менее 6 символов" required minlength="6">
+            </div>
+
+            <div class="form-group">
+                <label for="role" class="form-label">Назначаемая роль в системе</label>
+                <select id="role" name="role" class="form-control">
+                    <option value="voter" selected>Избиратель (Voter) — с правом голоса</option>
+                    <option value="auditor">Независимый аудитор (Auditor) — наблюдатель</option>
+                </select>
+            </div>
+
+            <div style="background: var(--primary-light); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 20px; font-size: 0.82rem; color: var(--primary-deep);">
+                💡 <strong>Криптографическая защита:</strong> При регистрации для вас автоматически генерируется случайная 16-байтная соль <code>secrets.token_hex(16)</code>. Она используется для генерации одноразового нуллификатора и отделения вашей личности от отправленного бюллетеня.
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 0.98rem;">
+                Завершить регистрацию →
+            </button>
+        </form>
+
+        <div style="text-align: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); font-size: 0.88rem; color: var(--text-muted);">
+            Уже зарегистрированы? <a href="{{ url_for('login_view') }}">Войти в аккаунт</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Главная — SecureVote{% endblock %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; gap: 32px;">
+
+    <!-- Section 3.1: Hero Block -->
+    <section class="card" style="padding: 40px 32px; background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-subtle) 100%); border-top: 4px solid var(--primary-deep);">
+        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; background: var(--primary-light); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: var(--radius-full); margin-bottom: 18px;">
+            <span style="color: var(--primary); font-weight: 700; font-size: 0.82rem;">🏛️ ОФИЦИАЛЬНЫЙ ПРОТОКОЛ ЭЛЕКТРОННОГО ГОЛОСОВАНИЯ</span>
+        </div>
+        <h1 style="max-width: 860px; margin-bottom: 16px;">
+            SecureVote — Надежная и прозрачная криптографическая система электронного голосования
+        </h1>
+        <p style="max-width: 760px; margin-bottom: 24px; color: var(--text-muted); font-size: 1.05rem;">
+            Система с математической гарантией тайны волеизъявления каждого избирателя. Процесс голосования занимает ровно <strong>3 простых шага (3 клика)</strong>, а все действия фиксируются в неизменяемой хэш-цепочке аудита.
+        </p>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="{{ url_for('vote_view') }}" class="btn btn-primary" style="padding: 12px 24px; font-size: 1rem;">
+                🗳️ Проголосовать (в 3 клика)
+            </a>
+            <a href="{{ url_for('audit_view') }}" class="btn btn-secondary" style="padding: 12px 22px; font-size: 1rem;">
+                🔍 Панель аудита и безопасности
+            </a>
+            <a href="{{ url_for('results_view') }}" class="btn btn-secondary" style="padding: 12px 22px; font-size: 1rem;">
+                📊 Итоги голосования
+            </a>
+        </div>
+    </section>
+
+    <!-- Key Principles & 3-Click Fast Voting Banner -->
+    <section class="grid-3">
+        <div class="card" style="border-left: 3px solid var(--primary);">
+            <div style="font-size: 1.5rem; margin-bottom: 8px;">🔒 1. Конфиденциальность</div>
+            <h3 style="margin-bottom: 6px; font-size: 1.1rem;">AES-256-GCM Шифрование</h3>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">
+                Бюллетень шифруется 256-битным ключом с уникальным 12-байтным вектором IV и 16-байтным тегом аутентификации GHASH.
+            </p>
+        </div>
+
+        <div class="card" style="border-left: 3px solid var(--success);">
+            <div style="font-size: 1.5rem; margin-bottom: 8px;">🛡️ 2. Защита от дублей</div>
+            <h3 style="margin-bottom: 6px; font-size: 1.1rem;">1-Избиратель — 1-Голос</h3>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">
+                Криптографический нуллификатор HMAC-SHA256 предотвращает повторное голосование без раскрытия личности избирателя.
+            </p>
+        </div>
+
+        <div class="card" style="border-left: 3px solid var(--primary-deep);">
+            <div style="font-size: 1.5rem; margin-bottom: 8px;">🔗 3. Прозрачность</div>
+            <h3 style="margin-bottom: 6px; font-size: 1.1rem;">Ed25519 & SHA-256 Аудит</h3>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">
+                Неизменяемый журнал аудита с блокчейн-хэш цепочкой и цифровыми подписями на эллиптических кривых Curve25519.
+            </p>
+        </div>
+    </section>
+
+    <!-- Active Election Card (Section 3.1) -->
+    {% if election %}
+    <section class="card" style="border: 2px solid var(--border-strong);">
+        <div class="card-header-bar">
+            <div>
+                <span class="badge {% if election.status == 'ACTIVE' %}badge-success{% else %}badge-warning{% endif %}" style="margin-bottom: 6px;">
+                    ● ТЕКУЩИЕ ВЫБОРЫ (СТАТУС: {{ election.status }})
+                </span>
+                <h2 style="font-size: 1.45rem;">{{ election.title }}</h2>
+            </div>
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <div style="text-align: center; padding: 8px 16px; background: var(--bg-subtle); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                    <div style="font-size: 1.6rem; font-weight: 800; color: var(--primary);">{{ election.candidates|length }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Кандидаты</div>
+                </div>
+                <div style="text-align: center; padding: 8px 16px; background: var(--bg-subtle); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                    <div style="font-size: 1.6rem; font-weight: 800; color: var(--success);">{{ election.vote_count }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;">Принято голосов</div>
+                </div>
+            </div>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 16px;">{{ election.description }}</p>
+        <div style="display: flex; justify-content: flex-end;">
+            <a href="{{ url_for('vote_view') }}" class="btn btn-primary">
+                Перейти в кабину голосования →
+            </a>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Quick Demo Accounts (For Professor / Reviewer Testing) -->
+    <section class="card" style="background: var(--bg-subtle);">
+        <h3 style="margin-bottom: 8px; font-size: 1.15rem;">
+            🧪 Быстрый демонстрационный вход (1-Click Demo Accounts)
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px;">
+            Для быстрой проверки выберите роль и войдите без ручного ввода:
+        </p>
+        <div class="grid-4">
+            <div class="card" style="padding: 14px;">
+                <span class="badge role-badge-admin" style="margin-bottom: 6px;">Администратор (Admin)</span>
+                <div style="font-weight: 700; font-size: 0.95rem;">admin</div>
+                <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px;">Admin@Secure2026!</div>
+                <a href="{{ url_for('login_view') }}" class="btn btn-secondary btn-sm" style="width: 100%;">Войти</a>
+            </div>
+
+            <div class="card" style="padding: 14px;">
+                <span class="badge role-badge-auditor" style="margin-bottom: 6px;">Аудитор (Auditor)</span>
+                <div style="font-weight: 700; font-size: 0.95rem;">auditor</div>
+                <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px;">Auditor@Audit2026!</div>
+                <a href="{{ url_for('login_view') }}" class="btn btn-secondary btn-sm" style="width: 100%;">Войти</a>
+            </div>
+
+            <div class="card" style="padding: 14px;">
+                <span class="badge role-badge-voter" style="margin-bottom: 6px;">Избиратель 1 (Voter)</span>
+                <div style="font-weight: 700; font-size: 0.95rem;">voter1</div>
+                <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px;">Voter1@Pass!</div>
+                <a href="{{ url_for('login_view') }}" class="btn btn-secondary btn-sm" style="width: 100%;">Войти</a>
+            </div>
+
+            <div class="card" style="padding: 14px;">
+                <span class="badge role-badge-voter" style="margin-bottom: 6px;">Избиратель 2 (Voter)</span>
+                <div style="font-weight: 700; font-size: 0.95rem;">voter2</div>
+                <div style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); margin-bottom: 10px;">Voter2@Pass!</div>
+                <a href="{{ url_for('login_view') }}" class="btn btn-secondary btn-sm" style="width: 100%;">Войти</a>
+            </div>
+        </div>
+    </section>
+
+</div>
+{% endblock %}

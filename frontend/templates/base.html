@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SecureVote — Система электронного голосования{% endblock %}</title>
+    <meta name="description" content="SecureVote: Криптографический протокол электронного голосования — Argon2id, AES-256-GCM, Ed25519, SHA-256.">
+    
+    <!-- Google Fonts: Inter (Typography) & JetBrains Mono (Cryptographic Hashes/Logs) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js for Interactive Results Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Header & Official Navigation -->
+    <header class="navbar">
+        <div class="container nav-container">
+            <a href="{{ url_for('index_view') }}" class="brand">
+                <div class="brand-icon">🛡️</div>
+                <div>
+                    <div>SecureVote</div>
+                    <span class="brand-sub">Электронное голосование</span>
+                </div>
+            </a>
+
+            <nav class="nav-wrapper">
+                <ul class="nav-links">
+                    <li><a href="{{ url_for('index_view') }}" class="nav-link {% if request.endpoint == 'index_view' %}active{% endif %}">Главная</a></li>
+                    <li><a href="{{ url_for('vote_view') }}" class="nav-link {% if request.endpoint == 'vote_view' %}active{% endif %}">Голосование</a></li>
+                    <li><a href="{{ url_for('results_view') }}" class="nav-link {% if request.endpoint == 'results_view' %}active{% endif %}">Результаты</a></li>
+                    <li><a href="{{ url_for('audit_view') }}" class="nav-link {% if request.endpoint == 'audit_view' %}active{% endif %}">Панель аудита</a></li>
+                    {% if current_user %}
+                        <li><a href="{{ url_for('dashboard_view') }}" class="nav-link {% if request.endpoint == 'dashboard_view' %}active{% endif %}">Личный кабинет</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+
+            <div class="nav-actions">
+                <!-- Theme Toggle Button -->
+                <button type="button" class="theme-toggle-btn" id="theme-toggle" title="Переключить тему оформления">
+                    <span id="theme-icon">🌙</span>
+                </button>
+
+                {% if active_election %}
+                    <span class="badge badge-status {% if active_election.status == 'ACTIVE' %}badge-success{% elif active_election.status == 'TALLIED' %}badge-primary{% else %}badge-warning{% endif %}" title="Статус выборов: {{ active_election.title }}">
+                        ● {% if active_election.status == 'ACTIVE' %}АКТИВНО{% elif active_election.status == 'CLOSED' %}ЗАВЕРШЕНО{% elif active_election.status == 'TALLIED' %}ИТОГИ{% else %}{{ active_election.status }}{% endif %}
+                    </span>
+                {% endif %}
+
+                {% if current_user %}
+                    <div class="user-pill" title="{{ current_user.full_name }} ({{ current_user.role }})">
+                        <span class="user-pill-icon">👤</span>
+                        <span class="user-pill-name">{{ current_user.full_name.split('(')[0].strip() }}</span>
+                        <span class="badge role-badge-{{ current_user.role }}">{{ current_user.role }}</span>
+                    </div>
+                    <a href="{{ url_for('logout_view') }}" class="btn btn-secondary btn-sm">Выйти</a>
+                {% else %}
+                    <a href="{{ url_for('login_view') }}" class="btn btn-secondary btn-sm">Войти</a>
+                    <a href="{{ url_for('register_view') }}" class="btn btn-primary btn-sm">Регистрация</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Flash Notifications / Toasts -->
+    <div class="container" style="margin-top: 16px;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <div style="font-weight: 600;">
+                            {% if category == 'success' %}✓{% elif category == 'danger' %}✗{% elif category == 'warning' %}⚠{% else %}ℹ{% endif %}
+                        </div>
+                        <div>{{ message }}</div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <main class="container" style="flex: 1; padding-top: 20px; padding-bottom: 40px;">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <strong>SecureVote Prototype</strong> — Криптографический прототип системы электронного голосования.<br>
+                <small style="color: var(--text-dim);">Python 3 · Flask · SQLite · Argon2id · AES-256-GCM · Ed25519 · SHA-256</small>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <span class="badge badge-primary">AES-256-GCM AEAD</span>
+                <span class="badge badge-success">Подписи Ed25519</span>
+                <span class="badge badge-primary">Хэш-цепочка SHA-256</span>
+                <span class="badge badge-warning">Хэширование Argon2id</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        // Theme switch initialization
+        const themeToggle = document.getElementById("theme-toggle");
+        const themeIcon = document.getElementById("theme-icon");
+        const htmlElement = document.documentElement;
+
+        const savedTheme = localStorage.getItem("securevote-theme") || "light";
+        htmlElement.setAttribute("data-theme", savedTheme);
+        if (themeIcon) themeIcon.textContent = savedTheme === "dark" ? "☀️" : "🌙";
+
+        if (themeToggle) {
+            themeToggle.addEventListener("click", () => {
+                const current = htmlElement.getAttribute("data-theme");
+                const next = current === "dark" ? "light" : "dark";
+                htmlElement.setAttribute("data-theme", next);
+                localStorage.setItem("securevote-theme", next);
+                themeIcon.textContent = next === "dark" ? "☀️" : "🌙";
+            });
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

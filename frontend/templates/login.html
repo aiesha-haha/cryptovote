@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Авторизация — SecureVote{% endblock %}
+
+{% block content %}
+<div style="max-width: 460px; margin: 30px auto;">
+    <div class="card" style="padding: 32px 28px; border-top: 4px solid var(--primary-deep);">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="width: 52px; height: 52px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 12px;">
+                🔐
+            </div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 4px;">Вход в систему SecureVote</h2>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">
+                Безопасная криптографическая аутентификация
+            </p>
+        </div>
+
+        <!-- Section 3.2: Security Indicator Hint -->
+        <div style="background: var(--primary-light); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 20px; font-size: 0.82rem; color: var(--primary-deep); display: flex; align-items: center; gap: 8px;">
+            <span>🛡️</span>
+            <div>
+                <strong>Индикатор безопасности:</strong> Пароли хешируются через <strong>Argon2id</strong> (Memory-hard) с постоянным временем проверки без утечек по сторонним каналам.
+            </div>
+        </div>
+
+        <!-- Demo Accounts Quick Filler -->
+        <div style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 20px;">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; font-weight: 700;">
+                Быстрое переключение для тестирования:
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm demo-login-btn" data-user="admin" data-pass="Admin@Secure2026!">
+                    Admin
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm demo-login-btn" data-user="auditor" data-pass="Auditor@Audit2026!">
+                    Auditor
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm demo-login-btn" data-user="voter1" data-pass="Voter1@Pass!">
+                    Voter 1
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm demo-login-btn" data-user="voter2" data-pass="Voter2@Pass!">
+                    Voter 2
+                </button>
+            </div>
+        </div>
+
+        <!-- Login Form -->
+        <form method="POST" action="{{ url_for('login_view', next=request.args.get('next')) }}" id="login-form">
+            <div class="form-group">
+                <label for="username" class="form-label">Идентификатор / Логин избирателя</label>
+                <input type="text" id="username" name="username" class="form-control" placeholder="Например: voter1" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Пароль / Құпиясөз</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="••••••••••••" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-login-submit" style="width: 100%; padding: 12px; font-size: 0.98rem; margin-top: 6px;">
+                <span id="login-btn-text">Войти в систему →</span>
+                <span id="login-spinner" class="spinner" style="display: none;"></span>
+            </button>
+        </form>
+
+        <div style="text-align: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); font-size: 0.88rem; color: var(--text-muted);">
+            Впервые в системе? <a href="{{ url_for('register_view') }}">Зарегистрироваться как избиратель</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Spinner loading state on login submission (Section 3.2)
+    const loginForm = document.getElementById("login-form");
+    const loginBtn = document.getElementById("btn-login-submit");
+    const loginText = document.getElementById("login-btn-text");
+    const loginSpinner = document.getElementById("login-spinner");
+
+    if (loginForm) {
+        loginForm.addEventListener("submit", () => {
+            loginBtn.disabled = true;
+            loginText.textContent = "Проверка Argon2id...";
+            loginSpinner.style.display = "inline-block";
+        });
+    }
+</script>
+{% endblock %}

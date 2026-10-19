@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}Результаты голосования — SecureVote{% endblock %}
+
+{% block content %}
+<div style="max-width: 980px; margin: 10px auto; display: flex; flex-direction: column; gap: 24px;">
+
+    <!-- Header Section -->
+    <div class="card" style="border-left: 4px solid var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+            <div>
+                <span class="badge badge-primary" style="margin-bottom: 6px;">📊 ОФИЦИАЛЬНЫЙ ПРОТОКОЛ ВЫБОРОВ</span>
+                <h1 style="font-size: 1.75rem;">Итоги электронного голосования</h1>
+                <p style="color: var(--text-muted); font-size: 0.92rem;">
+                    {{ election.title if election else 'Выборы' }} (Статус: <strong>{{ election.status if election else 'Не активны' }}</strong>)
+                </p>
+            </div>
+            {% if tally and tally.signature_valid %}
+                <span class="badge badge-success" style="font-size: 0.85rem; padding: 6px 14px;">
+                    ✓ Подпись Ed25519 проверена и подлинна
+                </span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not tally %}
+        <!-- Tally Not Generated Yet -->
+        <div class="card" style="text-align: center; padding: 48px 30px;">
+            <div style="font-size: 2.8rem; margin-bottom: 12px;">⏳</div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 8px;">Голосование продолжается (Итоги еще не подведены)</h2>
+            <p style="color: var(--text-muted); max-width: 620px; margin: 0 auto 24px;">
+                Для обеспечения тайны волеизъявления бюллетени зашифрованы алгоритмом AES-256-GCM и не могут быть расшифрованы до официального закрытия выборов. После закрытия председатель комиссии производит дешифрование и подписывает результат закрытым ключом Ed25519.
+            </p>
+
+            {% if current_user and current_user.role in ('admin', 'auditor') and election %}
+                <button class="btn btn-primary" id="btn-trigger-tally-results" data-id="{{ election.id }}">
+                    🏁 Завершить выборы и сформировать протокол Ed25519
+                </button>
+            {% else %}
+                <a href="{{ url_for('dashboard_view') }}" class="btn btn-secondary">
+                    Вернуться в личный кабинет
+                </a>
+            {% endif %}
+        </div>
+
+    {% else %}
+        <!-- Statistics Cards -->
+        <div class="grid-3">
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 0.82rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Всего бюллетеней</div>
+                <div style="font-size: 2.2rem; font-weight: 800; color: var(--text-main);">{{ tally.total_votes }}</div>
+            </div>
+            <div class="card" style="text-align: center; border-bottom: 3px solid var(--success);">
+                <div style="font-size: 0.82rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Действительные (AES-GCM OK)</div>
+                <div style="font-size: 2.2rem; font-weight: 800; color: var(--success);">{{ tally.valid_votes }}</div>
+            </div>
+            <div class="card" style="text-align: center; border-bottom: 3px solid var(--error);">
+                <div style="font-size: 0.82rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Поддельные / Поврежденные</div>
+                <div style="font-size: 2.2rem; font-weight: 800; color: var(--error);">{{ tally.invalid_votes }}</div>
+            </div>
+        </div>
+
+        <!-- Interactive Charts (Chart.js) -->
+        <div class="grid-2">
+            <div class="card">
+                <h3 style="font-size: 1.15rem; margin-bottom: 16px;">Распределение голосов (Гистограмма)</h3>
+                <div style="height: 280px; position: relative;">
+                    <canvas id="resultsBarChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="font-size: 1.15rem; margin-bottom: 16px;">Доли кандидатов (Диаграмма)</h3>
+                <div style="height: 280px; position: relative;">
+                    <canvas id="resultsDoughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidates Vote Breakdown Table -->
+        <div class="card">
+            <h3 style="font-size: 1.2rem; margin-bottom: 16px;">Итоговая таблица подсчета голосов</h3>
+            <div style="overflow-x: auto;">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Кандидат</th>
+                            <th>Партия / Направление</th>
+                            <th>Количество голосов</th>
+                            <th>Процент (%)</th>
+                            <th>Статус подлинности</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in tally.results.candidates %}
+                        <tr>
+                            <td style="font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block; width:12px; height:12px; border-radius:50%; background: {{ c.avatar_color }};"></span>
+                                {{ c.name }}
+                            </td>
+                            <td style="color: var(--text-muted);">{{ c.party }}</td>
+                            <td style="font-weight: 700; color: var(--primary);">{{ c.votes }}</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: var(--bg-subtle); border-radius: 4px; overflow: hidden; min-width: 60px;">
+                                        <div style="height: 100%; width: {{ c.percentage }}%; background: var(--primary); border-radius: 4px;"></div>
+                                    </div>
+                                    <span style="font-weight: 600; font-size: 0.85rem;">{{ c.percentage }}%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge badge-success">✓ Верифицирован</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Cryptographic Proof Block -->
+        <div class="card" style="border-top: 4px solid var(--primary-deep);">
+            <div class="card-header-bar">
+                <h3 style="font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                    <span>🛡️ Криптографическое доказательство подлинности (Cryptographic Proof)</span>
+                </h3>
+                <span class="badge badge-success">SHA-256 Digest + Ed25519 Valid</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 4px;">SHA-256 Хэш протокола результатов:</div>
+                    <div class="crypto-hash-box">
+                        <span class="hash-text">{{ tally.tally_hash }}</span>
+                        <button class="copy-btn" data-copy="{{ tally.tally_hash }}">Копировать</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 4px;">Цифровая подпись Ed25519 (64 байта / 128 hex):</div>
+                    <div class="crypto-hash-box">
+                        <span class="hash-text">{{ tally.signature }}</span>
+                        <button class="copy-btn" data-copy="{{ tally.signature }}">Копировать</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 4px;">Открытый ключ избирательной комиссии (Authority Public Key PEM):</div>
+                    <div class="crypto-hash-box" style="font-size: 0.76rem;">
+                        <span class="hash-text">{{ tally.authority_pubkey }}</span>
+                        <button class="copy-btn" data-copy="{{ tally.authority_pubkey }}">Копировать</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
+                <a href="{{ url_for('audit_view') }}" class="btn btn-secondary btn-sm">
+                    🔍 Сверить запись в журнале аудита →
+                </a>
+            </div>
+        </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if tally %}
+<script>
+    // Initialize Chart.js interactive charts with safety checks
+    document.addEventListener("DOMContentLoaded", () => {
+        try {
+            const candidateNames = {{ tally.results.candidates | map(attribute='name') | list | tojson }};
+            const candidateVotes = {{ tally.results.candidates | map(attribute='votes') | list | tojson }};
+            const candidateColors = {{ tally.results.candidates | map(attribute='avatar_color') | list | tojson }};
+
+            // 1. Bar Chart
+            const barElem = document.getElementById("resultsBarChart");
+            if (barElem && typeof Chart !== "undefined") {
+                const barCtx = barElem.getContext("2d");
+                new Chart(barCtx, {
+                    type: "bar",
+                    data: {
+                        labels: candidateNames,
+                        datasets: [{
+                            label: "Количество голосов",
+                            data: candidateVotes,
+                            backgroundColor: candidateColors,
+                            borderRadius: 6,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { stepSize: 1 }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            }
+
+            // 2. Doughnut Chart
+            const doughElem = document.getElementById("resultsDoughnutChart");
+            if (doughElem && typeof Chart !== "undefined") {
+                const doughCtx = doughElem.getContext("2d");
+                new Chart(doughCtx, {
+                    type: "doughnut",
+                    data: {
+                        labels: candidateNames,
+                        datasets: [{
+                            data: candidateVotes,
+                            backgroundColor: candidateColors,
+                            hoverOffset: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: "bottom" }
+                        }
+                    }
+                });
+            }
+        } catch (err) {
+            console.error("Ошибка построения графиков Chart.js:", err);
+        }
+    });
+</script>
+{% endif %}
+
+<script>
+    const triggerBtn = document.getElementById("btn-trigger-tally-results");
+    if (triggerBtn) {
+        triggerBtn.addEventListener("click", async () => {
+            const electionId = triggerBtn.getAttribute("data-id");
+            if (!electionId) {
+                alert("Идентификатор выборов не найден.");
+                return;
+            }
+            try {
+                triggerBtn.disabled = true;
+                triggerBtn.textContent = "Дешифрование бюллетеней и подписание Ed25519...";
+                const res = await fetch("/api/admin/election/tally", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ election_id: electionId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert("Ошибка: " + data.error);
+                    triggerBtn.disabled = false;
+                    triggerBtn.textContent = "🏁 Завершить выборы и сформировать протокол Ed25519";
+                }
+            } catch (e) {
+                alert("Ошибка сетевого запроса: " + e);
+                triggerBtn.disabled = false;
+                triggerBtn.textContent = "🏁 Завершить выборы и сформировать протокол Ed25519";
+            }
+        });
+    }
+</script>
+{% endblock %}

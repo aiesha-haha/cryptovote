@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Кабинет голосования — SecureVote{% endblock %}
+
+{% block content %}
+<div style="max-width: 960px; margin: 10px auto; display: flex; flex-direction: column; gap: 24px;">
+
+    {% if voted_now and receipt %}
+        <!-- Cryptographic Receipt Card (Post-Voting) -->
+        <div class="card" style="border-top: 4px solid var(--success); padding: 36px 30px; text-align: center;">
+            <div style="width: 64px; height: 64px; border-radius: 50%; background: var(--success-light); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 16px;">
+                ✓
+            </div>
+            <h1 style="font-size: 1.85rem; margin-bottom: 8px;">Ваш голос успешно зашифрован и принят!</h1>
+            <p style="color: var(--text-muted); max-width: 650px; margin: 0 auto 20px;">
+                Бюллетень зашифрован алгоритмом AES-256-GCM с 12-байтным случайным IV и записан в анонимную урну без привязки к вашему идентификатору. Сохраните криптографическую квитанцию для проверки в журнале аудита.
+            </p>
+
+            <!-- Cryptographic Receipt Container -->
+            <div style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; text-align: left; margin-bottom: 24px;">
+                <div style="font-weight: 700; font-size: 1rem; color: var(--primary-deep); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+                    <span>🧾 Официальная криптографическая квитанция (Vote Receipt)</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 4px;">Хэш квитанции (Receipt Hash — SHA-256):</div>
+                        <div class="crypto-hash-box">
+                            <span class="hash-text">{{ receipt.receipt_hash }}</span>
+                            <button class="copy-btn" data-copy="{{ receipt.receipt_hash }}">Копировать</button>
+                        </div>
+                    </div>
+
+                    <div class="grid-2" style="gap: 12px;">
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 4px;">AES-256-GCM Nonce (12 байт IV):</div>
+                            <div class="crypto-hash-box" style="font-size: 0.78rem;">
+                                <span class="hash-text">{{ receipt.nonce }}</span>
+                                <button class="copy-btn" data-copy="{{ receipt.nonce }}">Копировать</button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 4px;">AES-GCM Auth Tag (16 байт GHASH):</div>
+                            <div class="crypto-hash-box" style="font-size: 0.78rem;">
+                                <span class="hash-text">{{ receipt.auth_tag }}</span>
+                                <button class="copy-btn" data-copy="{{ receipt.auth_tag }}">Копировать</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 4px;">Цифровая подпись председателя (Ed25519 Signature):</div>
+                        <div class="crypto-hash-box" style="font-size: 0.76rem;">
+                            <span class="hash-text">{{ receipt.receipt_signature }}</span>
+                            <button class="copy-btn" data-copy="{{ receipt.receipt_signature }}">Копировать</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                <a href="{{ url_for('audit_view') }}" class="btn btn-primary">
+                    🔍 Проверить квитанцию в журнале аудита
+                </a>
+                <a href="{{ url_for('dashboard_view') }}" class="btn btn-secondary">
+                    Вернуться в кабинет
+                </a>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Header & Status Block (Section 3.3) -->
+        <div class="card" style="border-left: 4px solid var(--primary);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                <div>
+                    <div style="display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                        <span class="badge badge-success">✓ Доступно для голосования (1 голос)</span>
+                        <span class="badge badge-primary">AES-256-GCM AEAD</span>
+                    </div>
+                    <h1 style="font-size: 1.65rem;">{{ election.title }}</h1>
+                    <p style="color: var(--text-muted); font-size: 0.92rem;">
+                        {{ election.description }}
+                    </p>
+                </div>
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-dim); margin-bottom: 4px;">Избиратель:</div>
+                    <div style="font-weight: 700; font-size: 0.95rem;">{{ current_user.full_name }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form & Candidate Cards Grid -->
+        <form method="POST" action="{{ url_for('vote_view') }}" id="ballot-vote-form">
+            <input type="hidden" name="candidate_id" id="selected-candidate-id" value="">
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <h2 style="font-size: 1.3rem;">Выберите одного кандидата:</h2>
+                <span style="font-size: 0.85rem; color: var(--text-dim);">Кликните по карточке для выбора</span>
+            </div>
+
+            <div class="candidate-grid">
+                {% for c in election.candidates %}
+                <div class="candidate-card" data-candidate-id="{{ c.id }}" data-candidate-name="{{ c.name }}" data-candidate-party="{{ c.party }}">
+                    <div class="candidate-card-header">
+                        <div class="candidate-avatar" style="background: {{ c.avatar_color }};">
+                            {{ c.name[0] }}
+                        </div>
+                        <div>
+                            <div class="candidate-name">{{ c.name }}</div>
+                            <div class="candidate-party">{{ c.party }}</div>
+                        </div>
+                    </div>
+                    <div class="candidate-manifesto">
+                        {{ c.manifesto }}
+                    </div>
+                    <div class="candidate-select-footer">
+                        <input type="radio" name="candidate_radio" value="{{ c.id }}" style="accent-color: var(--primary); width: 18px; height: 18px;">
+                        <span class="select-label-text">Выбрать этого кандидата</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Floating Action Bar / Sticky Vote Trigger (Section 3.3) -->
+            <div class="floating-vote-bar" id="floating-bar">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 1.3rem;">🗳️</span>
+                    <div>
+                        <div id="bar-status-text" style="font-weight: 600; font-size: 0.95rem; color: var(--text-dim);">
+                            Кандидат еще не выбран. Выберите карточку выше.
+                        </div>
+                        <div style="font-size: 0.78rem; color: var(--text-dim);">
+                            Шифрование через AES-256-GCM произойдет автоматически перед записью.
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-open-confirm-modal" disabled style="padding: 12px 24px; font-size: 1rem;">
+                    Проголосовать →
+                </button>
+            </div>
+        </form>
+
+        <!-- Section 3.3: Confirmation Modal Window -->
+        <div class="modal-overlay" id="confirm-modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-icon-shield">🔒</div>
+                    <div>
+                        <h3 style="font-size: 1.25rem;">Подтверждение голосования</h3>
+                        <span style="font-size: 0.82rem; color: var(--text-dim);">Криптографическая защита протокола SecureVote</span>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning" style="margin-bottom: 16px;">
+                    <div>
+                        <strong>Внимание: Голос необратим!</strong><br>
+                        После отправки бюллетень будет немедленно зашифрован с помощью <strong>AES-256-GCM</strong> и помещен в электронную урну. Повторное голосование невозможно.
+                    </div>
+                </div>
+
+                <div style="background: var(--bg-subtle); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 20px; font-size: 0.9rem;">
+                    <div style="color: var(--text-dim); margin-bottom: 4px;">Ваш выбор:</div>
+                    <div id="modal-chosen-candidate" style="font-weight: 700; font-size: 1.1rem; color: var(--primary-deep);">
+                        —
+                    </div>
+                    <div id="modal-chosen-party" style="font-size: 0.85rem; color: var(--text-muted);">
+                        —
+                    </div>
+                </div>
+
+                <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5;">
+                    💡 <strong>Гарантия анонимности (Unlinkability):</strong> Сервер создаст криптографический нуллификатор <code>HMAC-SHA256(voter_salt, election_id)</code>, подтверждающий ваше право на 1 голос, но в базе данных не сохранится связи между вашим аккаунтом и этим бюллетенем.
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn btn-secondary" id="btn-modal-cancel">
+                        Отмена
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-modal-confirm">
+                        🔒 Зашифровать и отправить голос
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Section 3.3 Interactive candidate selection & modal flow
+    const cards = document.querySelectorAll(".candidate-card");
+    const selectedInput = document.getElementById("selected-candidate-id");
+    const openModalBtn = document.getElementById("btn-open-confirm-modal");
+    const barStatusText = document.getElementById("bar-status-text");
+    const confirmModal = document.getElementById("confirm-modal");
+    const modalCancelBtn = document.getElementById("btn-modal-cancel");
+    const modalConfirmBtn = document.getElementById("btn-modal-confirm");
+    const modalCandidate = document.getElementById("modal-chosen-candidate");
+    const modalParty = document.getElementById("modal-chosen-party");
+    const form = document.getElementById("ballot-vote-form");
+
+    let currentSelectedName = "";
+    let currentSelectedParty = "";
+
+    cards.forEach(card => {
+        card.addEventListener("click", () => {
+            cards.forEach(c => {
+                c.classList.remove("selected");
+                const radio = c.querySelector('input[type="radio"]');
+                if (radio) radio.checked = false;
+                const label = c.querySelector('.select-label-text');
+                if (label) label.textContent = "Выбрать этого кандидата";
+            });
+
+            card.classList.add("selected");
+            const radio = card.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+
+            const label = card.querySelector('.select-label-text');
+            if (label) label.textContent = "✓ Кандидат выбран";
+
+            const cid = card.getAttribute("data-candidate-id");
+            currentSelectedName = card.getAttribute("data-candidate-name");
+            currentSelectedParty = card.getAttribute("data-candidate-party");
+
+            selectedInput.value = cid;
+            openModalBtn.disabled = false;
+            barStatusText.innerHTML = `Выбран кандидат: <strong>${currentSelectedName}</strong> (${currentSelectedParty})`;
+            barStatusText.style.color = "var(--text-main)";
+        });
+    });
+
+    if (openModalBtn) {
+        openModalBtn.addEventListener("click", () => {
+            if (!selectedInput.value) return;
+            modalCandidate.textContent = currentSelectedName;
+            modalParty.textContent = currentSelectedParty;
+            confirmModal.classList.add("active");
+        });
+    }
+
+    if (modalCancelBtn) {
+        modalCancelBtn.addEventListener("click", () => {
+            confirmModal.classList.remove("active");
+        });
+    }
+
+    if (modalConfirmBtn) {
+        modalConfirmBtn.addEventListener("click", () => {
+            modalConfirmBtn.disabled = true;
+            modalConfirmBtn.innerHTML = "Шифрование AES-256-GCM... <span class='spinner'></span>";
+            form.submit();
+        });
+    }
+</script>
+{% endblock %}

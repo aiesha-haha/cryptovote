@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Личный кабинет — SecureVote{% endblock %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; gap: 24px;">
+
+    <!-- User Profile Header Card -->
+    <div class="card" style="border-top: 4px solid var(--primary); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 700;">
+                👤
+            </div>
+            <div>
+                <h1 style="font-size: 1.55rem; margin-bottom: 2px;">{{ user.full_name }}</h1>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="badge role-badge-{{ user.role }}">{{ user.role }}</span>
+                    <span style="color: var(--text-muted); font-size: 0.88rem;">@{{ user.username }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 4px;">Криптографическая соль избирателя (Voter Salt):</div>
+            <div class="crypto-hash-box" style="padding: 6px 10px; font-size: 0.76rem; max-width: 280px;">
+                <span class="hash-text">{{ user.voter_salt }}</span>
+                <button class="copy-btn" data-copy="{{ user.voter_salt }}">Коп.</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voter Status Card -->
+    {% if election %}
+    <div class="card">
+        <div class="card-header-bar">
+            <div>
+                <span class="badge {% if election.status == 'ACTIVE' %}badge-success{% else %}badge-warning{% endif %}" style="margin-bottom: 4px;">
+                    ● СТАТУС ВЫБОРОВ: {{ election.status }}
+                </span>
+                <h2 style="font-size: 1.35rem;">{{ election.title }}</h2>
+            </div>
+            <div>
+                {% if has_voted %}
+                    <span class="badge badge-success" style="font-size: 0.85rem; padding: 6px 12px;">✓ Голос учтен</span>
+                {% else %}
+                    <span class="badge badge-primary" style="font-size: 0.85rem; padding: 6px 12px;">Доступно для голосования</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.92rem; margin-bottom: 20px;">{{ election.description }}</p>
+
+        {% if has_voted %}
+            <div class="alert alert-success" style="margin-bottom: 0;">
+                <div>
+                    <strong>✓ Вы уже успешно проголосовали в этих выборах!</strong><br>
+                    Ваш бюллетень зашифрован ключом AES-256-GCM, а право голоса зафиксировано по принципу «1 избиратель — 1 голос». Личность отделена от бюллетеня с помощью криптографического нуллификатора.
+                </div>
+                <a href="{{ url_for('audit_view') }}" class="btn btn-secondary btn-sm" style="margin-left: auto;">
+                    Проверить в аудите →
+                </a>
+            </div>
+        {% else %}
+            {% if election.status == 'ACTIVE' %}
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--primary-light); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: var(--radius-sm); padding: 16px 20px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <strong style="color: var(--primary-deep); font-size: 1rem;">Вы еще не отдали свой голос.</strong>
+                        <div style="color: var(--text-muted); font-size: 0.88rem;">Пройдите в электронную кабину и сделайте свой выбор в 3 клика.</div>
+                    </div>
+                    <a href="{{ url_for('vote_view') }}" class="btn btn-primary">
+                        Перейти к голосованию →
+                    </a>
+                </div>
+            {% else %}
+                <div class="alert alert-warning" style="margin-bottom: 0;">
+                    Выборы в данный момент закрыты (статус: {{ election.status }}). Новые голоса не принимаются.
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Admin Panel -->
+    {% if user.role == 'admin' %}
+    <div class="card" style="border-top: 4px solid var(--warning);">
+        <div class="card-header-bar">
+            <h2 style="font-size: 1.35rem; color: var(--warning); display: flex; align-items: center; gap: 8px;">
+                <span>⚙️ Панель администратора (Election Administration)</span>
+            </h2>
+            <span class="badge role-badge-admin">Admin Controls</span>
+        </div>
+
+        <!-- Status Controls -->
+        {% if election %}
+        <div style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 18px; margin-bottom: 20px;">
+            <h3 style="font-size: 1.05rem; margin-bottom: 12px;">Управление жизненным циклом выборов:</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm btn-status-change" data-id="{{ election.id }}" data-status="ACTIVE" {{ 'disabled' if election.status == 'ACTIVE' }}>
+                    🟢 Открыть (ACTIVE)
+                </button>
+                <button class="btn btn-secondary btn-sm btn-status-change" data-id="{{ election.id }}" data-status="CLOSED" {{ 'disabled' if election.status == 'CLOSED' }}>
+                    🟡 Закрыть (CLOSED)
+                </button>
+                <button class="btn btn-primary btn-sm" id="btn-admin-tally" data-id="{{ election.id }}">
+                    🏁 Подсчитать голоса и подписать Ed25519 (TALLY)
+                </button>
+            </div>
+        </div>
+
+        <!-- Master Keys Inspection -->
+        <div style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 18px; margin-bottom: 20px;">
+            <h3 style="font-size: 1.05rem; margin-bottom: 12px;">Криптографические ключи выборов (Инспекция):</h3>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Симметричный мастер-ключ AES-256 (Hex, 32 байта):</label>
+                    <div class="crypto-hash-box">
+                        <span class="hash-text">{{ election.election_key }}</span>
+                        <button class="copy-btn" data-copy="{{ election.election_key }}">Копировать</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label" style="font-size: 0.8rem;">Открытый ключ избирательной комиссии (Authority Public Key Ed25519 PEM):</label>
+                    <div class="crypto-hash-box" style="font-size: 0.74rem;">
+                        <span class="hash-text">{{ election.authority_pubkey }}</span>
+                        <button class="copy-btn" data-copy="{{ election.authority_pubkey }}">Копировать</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Registered Users Table -->
+        <div>
+            <h3 style="font-size: 1.05rem; margin-bottom: 12px;">Зарегистрированные пользователи (Всего: {{ users_list|length }}):</h3>
+            <div style="overflow-x: auto;">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Логин</th>
+                            <th>Ф.И.О.</th>
+                            <th>Роль</th>
+                            <th>Дата регистрации</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users_list %}
+                        <tr>
+                            <td>{{ u.id }}</td>
+                            <td style="font-weight: 700; color: var(--primary);">{{ u.username }}</td>
+                            <td>{{ u.full_name }}</td>
+                            <td>
+                                <span class="badge role-badge-{{ u.role }}">{{ u.role }}</span>
+                            </td>
+                            <td style="color: var(--text-dim); font-size: 0.82rem;">{{ u.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll(".btn-status-change").forEach(btn => {
+    btn.addEventListener("click", async () => {
+        const electionId = btn.getAttribute("data-id");
+        const newStatus = btn.getAttribute("data-status");
+        try {
+            const res = await fetch("/api/admin/election/status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ election_id: electionId, status: newStatus })
+            });
+            const data = await res.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert("Ошибка: " + data.error);
+            }
+        } catch (e) {
+            alert("Ошибка сети: " + e);
+        }
+    });
+});
+
+const tallyBtn = document.getElementById("btn-admin-tally");
+if (tallyBtn) {
+    tallyBtn.addEventListener("click", async () => {
+        if (!confirm("Расшифровать все бюллетени и сформировать официальный протокол с цифровой подписью Ed25519?")) return;
+        const electionId = tallyBtn.getAttribute("data-id");
+        try {
+            const res = await fetch("/api/admin/election/tally", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ election_id: electionId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("Итоги успешно подсчитаны и подписаны Ed25519!");
+                window.location.href = "{{ url_for('results_view') }}";
+            } else {
+                alert("Ошибка: " + data.error);
+            }
+        } catch (e) {
+            alert("Ошибка запроса: " + e);
+        }
+    });
+}
+</script>
+{% endblock %}

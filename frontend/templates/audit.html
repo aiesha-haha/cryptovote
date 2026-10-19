@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Панель аудита и безопасности (Auditor Panel) — SecureVote{% endblock %}
+
+{% block content %}
+<div style="max-width: 1040px; margin: 10px auto; display: flex; flex-direction: column; gap: 24px;">
+
+    <!-- Header Section (Section 3.5) -->
+    <div class="card" style="border-left: 4px solid var(--success);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+            <div>
+                <span class="badge badge-success" style="margin-bottom: 6px;">🛡️ НЕИЗМЕНЯЕМЫЙ ЖУРНАЛ АУДИТА (IMMUTABLE AUDIT LOG)</span>
+                <h1 style="font-size: 1.75rem;">Панель аудита и криптографической безопасности</h1>
+                <p style="color: var(--text-muted); font-size: 0.92rem;">
+                    Демонстрация криптографических доказательств, логов и SHA-256 хэш-цепочек с цифровой подписью Ed25519.
+                </p>
+            </div>
+            <div id="chain-integrity-indicator">
+                {% if verification and verification.valid %}
+                    <span class="badge badge-success" style="font-size: 0.88rem; padding: 8px 16px;">
+                        ✓ Целостность цепи подтверждена (Valid Chain)
+                    </span>
+                {% else %}
+                    <span class="badge badge-danger" style="font-size: 0.88rem; padding: 8px 16px;">
+                        ✗ ВНИМАНИЕ: Нарушена целостность данных!
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3.5: Verifier Tool & Tamper Testing Controls -->
+    <div class="card">
+        <div class="card-header-bar">
+            <h3 style="font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                <span>🔬 Инструменты верификации и тестирования (Auditor Verifier Tools)</span>
+            </h3>
+            <span style="font-size: 0.82rem; color: var(--text-dim);">
+                Всего записей в цепи: <strong>{{ ledger|length }} блоков</strong>
+            </span>
+        </div>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+            <button class="btn btn-primary" id="btn-verify-chain">
+                🛡️ Ручная проверка целостности цепи
+            </button>
+            <button class="btn btn-danger" id="btn-tamper-test">
+                ⚠️ Симуляция подделки данных (Tamper Test)
+            </button>
+            <button class="btn btn-secondary" id="btn-restore-chain">
+                🔄 Восстановить эталонное состояние
+            </button>
+        </div>
+
+        <!-- Dynamic Verification Status Banner -->
+        <div id="audit-status-badge" class="alert {% if verification and verification.valid %}alert-success{% else %}alert-danger{% endif %}" style="margin-bottom: 0;">
+            {% if verification and verification.valid %}
+                <div>
+                    <strong>✓ Аудит успешно пройден:</strong> Все {{ verification.chain_length }} блоков хэш-цепочки SHA-256 и подписи Ed25519 математически верны. База данных не подвергалась несанкционированным изменениям.
+                </div>
+            {% else %}
+                <div>
+                    <strong>⚠ ОБНАРУЖЕНО НАРУШЕНИЕ:</strong> Ошибка верификации на блоке #{{ verification.broken_index if verification else '?' }}. Причина: {{ verification.error if verification else 'Хэш не совпадает' }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Section 3.5: Public Bulletin Board Receipt Lookup -->
+    <div class="card">
+        <h3 style="font-size: 1.15rem; margin-bottom: 8px;">
+            🔍 Публичная проверка квитанции избирателя (Bulletin Board Verifier)
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 14px;">
+            Любой избиратель может ввести 64-символьный хэш своей квитанции, чтобы убедиться, что его зашифрованный голос включен в публичный реестр:
+        </p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="input-search-receipt" class="form-control" style="flex: 1; min-width: 260px; font-family: var(--font-mono); font-size: 0.85rem;" placeholder="Введите SHA-256 хэш квитанции (например: 3a9f02c4b8e1...)">
+            <button class="btn btn-primary" id="btn-search-receipt">
+                Найти в реестре
+            </button>
+        </div>
+        <div id="receipt-result-box" style="display: none; margin-top: 14px;"></div>
+    </div>
+
+    <!-- Section 3.5: Audit Log Hash Chain Sequential Table -->
+    <div class="card">
+        <h3 style="font-size: 1.2rem; margin-bottom: 16px;">
+            Реестр транзакций голосования (Sequential Audit Chain)
+        </h3>
+        
+        <div style="overflow-x: auto;">
+            <table class="audit-table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">Индекс</th>
+                        <th style="width: 170px;">Время (UTC)</th>
+                        <th>Действие</th>
+                        <th>Предыдущий хэш (SHA-256)</th>
+                        <th>Текущий хэш блока</th>
+                        <th style="width: 90px;">Подпись</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for block in ledger %}
+                    <tr id="audit-row-{{ block.index_num }}" class="audit-block-row">
+                        <td style="font-family: var(--font-mono); font-weight: 700; color: var(--primary);">
+                            #{{ block.index_num }}
+                        </td>
+                        <td style="font-size: 0.8rem; color: var(--text-dim); font-family: var(--font-mono);">
+                            {{ block.timestamp }}
+                        </td>
+                        <td>
+                            {% if block.index_num == 0 %}
+                                <span class="badge badge-primary">GENESIS</span>
+                            {% elif 'VOTE' in block.action %}
+                                <span class="badge badge-success">🗳️ VOTE_CAST</span>
+                            {% elif 'TALLY' in block.action %}
+                                <span class="badge badge-primary">🏁 TALLY_FINALIZED</span>
+                            {% else %}
+                                <span class="badge badge-warning">{{ block.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="crypto-hash-box" style="padding: 4px 8px; font-size: 0.72rem; max-width: 200px;">
+                                <span class="hash-text">{{ block.prev_hash }}</span>
+                                <button class="copy-btn" data-copy="{{ block.prev_hash }}">Коп.</button>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="crypto-hash-box" style="padding: 4px 8px; font-size: 0.72rem; max-width: 220px; color: var(--primary);">
+                                <span class="hash-text">{{ block.current_hash }}</span>
+                                <button class="copy-btn" data-copy="{{ block.current_hash }}">Коп.</button>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge badge-success" title="Ed25519 Signature Verified" style="cursor: pointer;" onclick="alert('Ed25519 подпись блока #{{ block.index_num }}:\n\n{{ block.signature }}')">
+                                ✓ Ed25519
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" style="padding: 6px 14px 14px 14px; background: var(--bg-subtle); border-bottom: 2px solid var(--border-subtle);">
+                            <div style="font-size: 0.76rem; color: var(--text-dim); margin-bottom: 2px;">Содержимое блока (Payload Details):</div>
+                            <div style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-muted); word-break: break-all; background: var(--bg-surface); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                                {{ block.details }}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/audit.js') }}"></script>
+{% endblock %}
